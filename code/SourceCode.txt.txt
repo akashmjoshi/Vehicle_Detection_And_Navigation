@@ -1,0 +1,982 @@
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+#include <algorithm>
+#include <vector>
+	
+using namespace std;
+
+// Global Variables
+double law_filters_25[5][5][25] = {0};
+
+void matrix_multi(int a[5], int b[5], int c)
+{
+	for(int i = 0; i < 5; i++)
+	{
+		for(int j = 0; j < 5; j++)
+		{
+           law_filters_25[i][j][c] = a[i] * b[j];
+           // cout << law_filters_25[i][j][c] << " ";
+		}
+		// cout << endl;
+	}
+	// cout << endl;
+}
+
+void law_filters_init()
+{
+	// Intializing Level, Edge, Spot, Wave and Ripple Filters
+	int l5[5] = {1, 4, 6, 4, 1};	// Level
+	int e5[5] = {-1, -2, 0, 2, 1};	// Edge
+	int s5[5] = {-1, 0, 2, 0, 1};	// Spot
+	int w5[5] = {-1, 2, 0, -2, 1};	// Wave
+	int r5[5] = {1, -4, 6, -4, 1};	// Ripple
+
+	matrix_multi(l5,l5,0); 
+	matrix_multi(l5,e5,1); 
+	matrix_multi(l5,s5,2); 
+	matrix_multi(l5,w5,3); 
+	matrix_multi(l5,r5,4); 
+
+	matrix_multi(e5,l5,5); 
+	matrix_multi(e5,e5,6); 
+	matrix_multi(e5,s5,7); 
+	matrix_multi(e5,w5,8); 
+	matrix_multi(e5,r5,9); 
+
+	matrix_multi(s5,l5,10); 
+	matrix_multi(s5,e5,11); 
+	matrix_multi(s5,s5,12); 
+	matrix_multi(s5,w5,13); 
+	matrix_multi(s5,r5,14); 
+
+	matrix_multi(w5,l5,15); 
+	matrix_multi(w5,e5,16); 
+	matrix_multi(w5,s5,17); 
+	matrix_multi(w5,w5,18); 
+	matrix_multi(w5,r5,19); 
+
+	matrix_multi(r5,l5,20); 
+	matrix_multi(r5,e5,21); 
+	matrix_multi(r5,s5,22); 
+	matrix_multi(r5,w5,23); 
+	matrix_multi(r5,r5,24); 
+}
+
+// Akash Mukesh Joshi
+// USC ID :4703642421
+// USC Email : akashjos@usc.edu
+// Submission Date : 6th November 2016
+// Problem 1.a : 
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+#include <algorithm>
+#include <vector>
+#include "law_filters.h"
+#include "kmeans.c"
+#include <fstream>
+#include <sstream>
+
+using namespace std;
+
+// Allocate image data array
+unsigned char Imagedata[128][128][12] = {0};
+unsigned char IMean[128][128][12] = {0};
+double c[25][12] = {0}, c_norm[25][12] = {0}; 
+
+int mean_5(int i, int j, int k)
+{
+	int x = (Imagedata[i-2][j-2][k] + Imagedata[i-1][j-2][k] + Imagedata[i][j-2][k] + Imagedata[i+1][j-2][k] + Imagedata[i+2][j-2][k] +
+			 Imagedata[i-2][j-1][k] + Imagedata[i-1][j-1][k] + Imagedata[i][j-1][k] + Imagedata[i+1][j-1][k] + Imagedata[i+2][j-1][k] +
+			 Imagedata[i-2][j][k]   + Imagedata[i-1][j][k]   + Imagedata[i][j][k]   + Imagedata[i+1][j][k]   + Imagedata[i+2][j][k]   +
+			 Imagedata[i-2][j+1][k] + Imagedata[i-1][j+1][k] + Imagedata[i][j+1][k] + Imagedata[i+1][j+1][k] + Imagedata[i+2][j+1][k] +
+			 Imagedata[i-2][j+2][k] + Imagedata[i-1][j+2][k] + Imagedata[i][j+2][k] + Imagedata[i+1][j+2][k] + Imagedata[i+2][j+2][k]) /25;
+
+	return x;
+}
+
+double energy_5(int i, int j, int k, int fil)
+{
+	char m = 2, n = 2;
+	double x = (IMean[i-2][j-2][k]*(double)law_filters_25[m-2][n-2][fil] + IMean[i-1][j-2][k]*(double)law_filters_25[m-1][n-2][fil] + IMean[i][j-2][k]*(double)law_filters_25[m][n-2][fil] + IMean[i+1][j-2][k]*(double)law_filters_25[m+1][n-2][fil] + IMean[i+2][j-2][k]*(double)law_filters_25[m+2][n-2][fil] +
+				IMean[i-2][j-1][k]*(double)law_filters_25[m-2][n-1][fil] + IMean[i-1][j-1][k]*(double)law_filters_25[m-1][n-1][fil] + IMean[i][j-1][k]*(double)law_filters_25[m][n-1][fil] + IMean[i+1][j-1][k]*(double)law_filters_25[m+1][n-1][fil] + IMean[i+2][j-1][k]*(double)law_filters_25[m+2][n-1][fil] +
+			 	IMean[i-2][j][k]*(double)law_filters_25[m-2][n][fil]     + IMean[i-1][j][k]*(double)law_filters_25[m-1][n][fil] 	+ IMean[i][j][k]*(double)law_filters_25[m][n][fil]     + IMean[i+1][j][k]*(double)law_filters_25[m+1][n][fil]     + IMean[i+2][j][k]*(double)law_filters_25[m+2][n][fil]     +
+			 	IMean[i-2][j+1][k]*(double)law_filters_25[m-2][n+1][fil] + IMean[i-1][j+1][k]*(double)law_filters_25[m-1][n+1][fil] + IMean[i][j+1][k]*(double)law_filters_25[m][n+1][fil] + IMean[i+1][j+1][k]*(double)law_filters_25[m+1][n+1][fil] + IMean[i+2][j+1][k]*(double)law_filters_25[m+2][n+1][fil] +
+			 	IMean[i-2][j+2][k]*(double)law_filters_25[m-2][n+2][fil] + IMean[i-1][j+2][k]*(double)law_filters_25[m-1][n+2][fil] + IMean[i][j+2][k]*(double)law_filters_25[m][n+2][fil] + IMean[i+1][j+2][k]*(double)law_filters_25[m+1][n+2][fil] + IMean[i+2][j+2][k]*(double)law_filters_25[m+2][n+2][fil]);
+	return x;
+}
+
+void feature_norm()
+{
+	double array[12] = {0};
+	for(int i = 0; i < 12; i++)
+	{
+		for(int j = 0; j < 25; j++)
+		{
+			array[i] = c[i][j];
+		}
+
+		double min  = *std::min_element(array,array+12);
+		double max  = *std::max_element(array,array+12);
+
+		for(int j = 0; j < 25; j++)
+		{
+			c_norm[i][j] = (c[i][j] - min) / (max - min);
+			cout << c_norm[i][j] << " ";
+		}
+		cout << endl;
+	}
+}
+
+int main(int argc, char *argv[])
+{
+	// Generate 25 5x5 Law Filter Masks
+	law_filters_init();
+	
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel = 1;
+	int Size_col = 128;
+	int Size_row = 128;
+	
+	// Define file pointer and variables
+    ifstream ifile;
+    ofstream ofile;
+
+	// Check for proper syntax
+	if (argc < 1){
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name" << endl;
+		return 0;
+	}
+
+	// Input Image Raw File Names 
+	string ip_image[] = { "Texture1.raw", "Texture2.raw",  "Texture3.raw",  "Texture4.raw",
+				  		  "Texture5.raw", "Texture6.raw",  "Texture7.raw",  "Texture8.raw",
+				  		  "Texture9.raw", "Texture10.raw", "Texture11.raw", "Texture12.raw"};
+
+	// Read image (filename specified by first argument) into image data matrix
+	unsigned char Inputimage[Size_row][Size_col] = {0};
+	for(int k = 0; k < 12; k++)
+	{
+		const char *raw = ip_image[k].c_str();
+
+		if (!(file=fopen(raw,"rg"))) {
+			cout << "Cannot open file: " << argv[1] <<endl;
+			exit(1);
+		}
+
+		fread(Inputimage, sizeof(unsigned char), Size_row*Size_col*1, file);
+		fclose(file);
+
+		for (int i = 0; i < Size_row; i++)
+			for (int j = 0; j < Size_col; j++)
+				Imagedata[i][j][k] = Inputimage[i][j];
+	}
+
+	//////////////////// INSERT CODE HERE ///////////////////////
+	// Subtract the Global Mean in Neighbhorhood 
+	int k = 0; 		
+	int mean5 = 0;
+	double energy5 = 0, fil_val = 0;
+	for(k = 0; k < 12; k++) // For all 12 Images
+	{
+		for (int i = 2; i < Size_row-2; i++)
+			for (int j = 2; j < Size_col-2; j++)
+			{	
+				mean5 = mean_5(i,j,k);
+				IMean[i][j][k] = Imagedata[i][j][k] - mean5;
+			}
+
+		//Applying All 25 Filters to find energy
+		for (int l = 0; l < 25; l++)
+		{
+			energy5 = 0;
+			for (int i = 2; i < Size_row-2; i++)
+				for (int j = 2; j < Size_col-2; j++)
+				{	
+					fil_val = energy_5(i,j,k,l);
+					energy5 += fil_val*fil_val;
+				}
+			c[l][k] = energy5 / Size_row * Size_col;
+			// cout << c[k][l] << endl;
+		}
+	}
+	// Feature Normalization
+	feature_norm();
+
+	//Output Data in .csv File
+    ofile.open("prb1prta.csv", ios::out | ios::trunc);
+    for(int i = 0; i < 25; i++) 
+    {
+        for(int j = 0; j < 12 ;j++) 
+            ofile << c_norm[i][j]<< ",";
+        ofile << endl;
+    }
+    ofile.close();
+
+return 0;
+}
+
+// % Akash Mukesh Joshi
+// % USC ID :4703642421
+// % USC Email : akashjos@usc.edu
+// % Submission Date : 6th November 2016
+// % Problem 1.a : PCA and KMeans Algorithm
+
+// clc; clear; close all;
+// fv_norm = csvread('prb1prta.csv');
+
+// % Initializing First Centroid Clustering Points
+// centroid = [ 1.50  -0.30  0.20;
+//             -10.0   0.00  0.00;
+//              2.00  -0.20 -0.40;
+//              6.00   0.40  0.10];
+
+// %% Running PCA for Dimensinality Reduction 25D to 3D
+// [~,score,~,~,explainedVar] = pca(fv_norm(:,1:12)');
+// figure;
+// bar(explainedVar)
+// for i = 1 : 1 : 12
+//     for j = 1 : 1 : 3
+//         fv_pca(i,j) = score(i,j);
+//     end
+// end
+
+// %% Running KMeans on 3D Feature Vector
+// [clusters(:,1), centroid] = kmeans(fv_pca,4,'MaxIter',1000,'Start',centroid);
+// figure;
+// scatter3(fv_pca(:,1),fv_pca(:,2),fv_pca(:,3),'r*');
+// figure;
+// gscatter(fv_pca(:,1),fv_pca(:,2),clusters)
+
+// %% Running KMeans on 25D Feature Vector
+// [clusters(:,2), ~] = kmeans(fv_norm(:,1:12)',4,'MaxIter',1000)
+
+// Akash Mukesh Joshi
+// USC ID :4703642421
+// USC Email : akashjos@usc.edu
+// Submission Date : 6th November 2016
+// Problem 1.a : Texture Segmentation
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+#include <algorithm>
+#include <vector>
+#include "law_filters.h"
+#include "kmeans.c"
+#include <fstream>
+#include <sstream>
+
+using namespace std;
+
+// Allocate image data array
+double c[25][1] = {0}, c_norm[25][1] = {0}; 
+unsigned char Imagedata[512][512][1] = {0};
+unsigned char IMean[512][512][1] = {0};
+unsigned char ImagedataFil[512][512][25] = {0};
+
+double mean_5(int i, int j, int k)
+{
+	double x = (Imagedata[i-2][j-2][k] + Imagedata[i-1][j-2][k] + Imagedata[i][j-2][k] + Imagedata[i+1][j-2][k] + Imagedata[i+2][j-2][k] +
+			 Imagedata[i-2][j-1][k] + Imagedata[i-1][j-1][k] + Imagedata[i][j-1][k] + Imagedata[i+1][j-1][k] + Imagedata[i+2][j-1][k] +
+			 Imagedata[i-2][j][k]   + Imagedata[i-1][j][k]   + Imagedata[i][j][k]   + Imagedata[i+1][j][k]   + Imagedata[i+2][j][k]   +
+			 Imagedata[i-2][j+1][k] + Imagedata[i-1][j+1][k] + Imagedata[i][j+1][k] + Imagedata[i+1][j+1][k] + Imagedata[i+2][j+1][k] +
+			 Imagedata[i-2][j+2][k] + Imagedata[i-1][j+2][k] + Imagedata[i][j+2][k] + Imagedata[i+1][j+2][k] + Imagedata[i+2][j+2][k]) /25;
+	return x;
+}
+
+double law_fil(int i, int j, int k, int fil)
+{
+	char m = 2, n = 2;
+	double x = (double)(Imagedata[i-2][j-2][k]*(double)law_filters_25[m-2][n-2][fil] + Imagedata[i-1][j-2][k]*(double)law_filters_25[m-1][n-2][fil] + Imagedata[i][j-2][k]*(double)law_filters_25[m][n-2][fil] + Imagedata[i+1][j-2][k]*(double)law_filters_25[m+1][n-2][fil] + Imagedata[i+2][j-2][k]*(double)law_filters_25[m+2][n-2][fil] +
+				Imagedata[i-2][j-1][k]*(double)law_filters_25[m-2][n-1][fil] + Imagedata[i-1][j-1][k]*(double)law_filters_25[m-1][n-1][fil] + Imagedata[i][j-1][k]*(double)law_filters_25[m][n-1][fil] + Imagedata[i+1][j-1][k]*(double)law_filters_25[m+1][n-1][fil] + Imagedata[i+2][j-1][k]*(double)law_filters_25[m+2][n-1][fil] +
+			 	Imagedata[i-2][j][k]*(double)law_filters_25[m-2][n][fil]     + Imagedata[i-1][j][k]*(double)law_filters_25[m-1][n][fil] 	+ Imagedata[i][j][k]*(double)law_filters_25[m][n][fil]     + Imagedata[i+1][j][k]*(double)law_filters_25[m+1][n][fil]     + Imagedata[i+2][j][k]*(double)law_filters_25[m+2][n][fil]     +
+			 	Imagedata[i-2][j+1][k]*(double)law_filters_25[m-2][n+1][fil] + Imagedata[i-1][j+1][k]*(double)law_filters_25[m-1][n+1][fil] + Imagedata[i][j+1][k]*(double)law_filters_25[m][n+1][fil] + Imagedata[i+1][j+1][k]*(double)law_filters_25[m+1][n+1][fil] + Imagedata[i+2][j+1][k]*(double)law_filters_25[m+2][n+1][fil] +
+			 	Imagedata[i-2][j+2][k]*(double)law_filters_25[m-2][n+2][fil] + Imagedata[i-1][j+2][k]*(double)law_filters_25[m-1][n+2][fil] + Imagedata[i][j+2][k]*(double)law_filters_25[m][n+2][fil] + Imagedata[i+1][j+2][k]*(double)law_filters_25[m+1][n+2][fil] + Imagedata[i+2][j+2][k]*(double)law_filters_25[m+2][n+2][fil])/255.0;
+	// cout << x << " ";
+	return x;
+}
+
+void Out_Fil(int Size_row, int Size_col)
+{
+	// Define file pointer and variables
+	FILE *file;
+    ifstream ifile;
+    ofstream ofile;
+
+	// Ouput Image After Applying 25 Law Filters
+	unsigned char Outputimage[Size_row][Size_col][1] = {0}; 
+	string out_image[] = {"Fil1.raw", "Fil2.raw", "Fil3.raw", "Fil4.raw", "Fil5.raw",
+						  "Fil6.raw", "Fil7.raw", "Fil8.raw", "Fil9.raw", "Fil10.raw",
+						  "Fil11.raw", "Fil12.raw", "Fil13.raw", "Fil14.raw", "Fil15.raw",
+				  		  "Fil16.raw", "Fil17.raw", "Fil18.raw", "Fil19.raw", "Fil20.raw",
+				  		  "Fil21.raw", "Fil22.raw", "Fil23.raw", "Fil24.raw", "Fil25.raw"};
+
+	for(int l = 0; l < 25; l++)
+	{
+		const char *raw = out_image[l].c_str();
+
+		if (!(file=fopen(raw,"wb"))) {
+			cout << "Error in writing file: " <<endl;
+			exit(1);
+		}
+
+		for (int i = 0; i < Size_row; i++)
+			for (int j = 0; j < Size_col; j++)
+				Outputimage[i][j][0] = ImagedataFil[i][j][l];
+
+		fwrite(Outputimage, sizeof(unsigned char), Size_row*Size_col, file);
+		fclose(file);
+
+	}	
+}
+
+double energy_5(int i, int j, int k, int fil)
+{
+	char m = 2, n = 2;
+	double x = (double)(IMean[i-2][j-2][k]*(double)law_filters_25[m-2][n-2][fil] + IMean[i-1][j-2][k]*(double)law_filters_25[m-1][n-2][fil] + IMean[i][j-2][k]*(double)law_filters_25[m][n-2][fil] + IMean[i+1][j-2][k]*(double)law_filters_25[m+1][n-2][fil] + IMean[i+2][j-2][k]*(double)law_filters_25[m+2][n-2][fil] +
+				IMean[i-2][j-1][k]*(double)law_filters_25[m-2][n-1][fil] + IMean[i-1][j-1][k]*(double)law_filters_25[m-1][n-1][fil] + IMean[i][j-1][k]*(double)law_filters_25[m][n-1][fil] + IMean[i+1][j-1][k]*(double)law_filters_25[m+1][n-1][fil] + IMean[i+2][j-1][k]*(double)law_filters_25[m+2][n-1][fil] +
+			 	IMean[i-2][j][k]*(double)law_filters_25[m-2][n][fil]     + IMean[i-1][j][k]*(double)law_filters_25[m-1][n][fil] 	+ IMean[i][j][k]*(double)law_filters_25[m][n][fil]     + IMean[i+1][j][k]*(double)law_filters_25[m+1][n][fil]     + IMean[i+2][j][k]*(double)law_filters_25[m+2][n][fil]     +
+			 	IMean[i-2][j+1][k]*(double)law_filters_25[m-2][n+1][fil] + IMean[i-1][j+1][k]*(double)law_filters_25[m-1][n+1][fil] + IMean[i][j+1][k]*(double)law_filters_25[m][n+1][fil] + IMean[i+1][j+1][k]*(double)law_filters_25[m+1][n+1][fil] + IMean[i+2][j+1][k]*(double)law_filters_25[m+2][n+1][fil] +
+			 	IMean[i-2][j+2][k]*(double)law_filters_25[m-2][n+2][fil] + IMean[i-1][j+2][k]*(double)law_filters_25[m-1][n+2][fil] + IMean[i][j+2][k]*(double)law_filters_25[m][n+2][fil] + IMean[i+1][j+2][k]*(double)law_filters_25[m+1][n+2][fil] + IMean[i+2][j+2][k]*(double)law_filters_25[m+2][n+2][fil]);
+	// cout << x << " ";
+	return x;
+}
+
+void feature_norm()
+{
+	double array[12] = {0};
+	for(int i = 0; i < 12; i++)
+	{
+		for(int j = 0; j < 25; j++)
+		{
+			array[i] = c[i][j];
+		}
+
+		double min  = *std::min_element(array,array+12);
+		double max  = *std::max_element(array,array+12);
+
+		for(int j = 0; j < 25; j++)
+		{
+			c_norm[i][j] = (c[i][j] - min) / (max - min);
+			cout << c_norm[i][j] << " ";
+		}
+		cout << endl;
+	}
+}
+
+int main(int argc, char *argv[])
+{
+	// Generate 25 5x5 Law Filter Masks
+	law_filters_init();
+
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel = 1;
+	int Size_col = 128;
+	int Size_row = 128;
+	
+	// Define file pointer and variables
+    ifstream ifile;
+    ofstream ofile;
+
+	// Check for proper syntax
+	if (argc < 1){
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name" << endl;
+		return 0;
+	}
+
+	// Check if image is grayscale or color
+	if (argc < 2){
+		BytesPerPixel = 1; // default is grey image
+	} 
+	else {
+		BytesPerPixel = atoi(argv[2]);
+		// Check if size is specified
+		if (argc >= 4){
+			Size_col = atoi(argv[3]);
+			Size_row = atoi(argv[4]);
+		}
+	}
+
+	// unsigned char Imagedata[Size_row][Size_col][BytesPerPixel] = {0};
+	// unsigned char IMean[Size_row][Size_col][BytesPerPixel] = {0};
+	// unsigned char ImagedataFil[Size_row][Size_col][25] = {0};
+
+	if (!(file=fopen(argv[1],"rg"))) {
+		cout << "Cannot open file: " << argv[1] <<endl;
+		exit(1);
+	}
+
+	fread(Imagedata, sizeof(unsigned char), Size_row*Size_col*1, file);
+	fclose(file);
+	
+	//////////////////// insert code here //////////////////
+
+	double mean5 = 0;
+	double energy5 = 0, fil_val = 0;
+
+	//Applying All 25 Filters to Normalized Image	
+	for (int l = 0; l < 25; l++)
+		for (int i = 2; i < Size_row-2; i++)
+			for (int j = 2; j < Size_col-2; j++)
+			{	
+				ImagedataFil[i][j][l] = double(law_fil(i,j,0,l));
+			}
+
+	// Re-Normalize Image 
+	double minimum = 0,  maximum = 0;
+	for (int l = 0; l < 25; l++)
+	{
+		for (int i = 2; i < Size_row-2; i++)
+			for (int j = 2; j < Size_col-2; j++)
+			{
+				maximum = std::max((double)ImagedataFil[i][j][l], maximum);
+				minimum = std::min((double)ImagedataFil[i][j][l], minimum);
+			}
+		for (int i = 2; i < Size_row-2; i++)
+			for (int j = 2; j < Size_col-2; j++)
+			ImagedataFil[i][j][l] = floor(255.0 * (ImagedataFil[i][j][l] - minimum) / (maximum - minimum)); 	
+	}
+
+	// Output Raw Images 
+	Out_Fil(Size_row,Size_col);
+	 
+	// Re-Initalize IMean as zero Matrix 
+	for (int i = 0; i < Size_row; i++)
+		for (int j = 0; j < Size_col; j++)
+			IMean[i][j][0] = 0;
+
+	// Subtract the Global Mean in Neighbhorhood
+	for (int i = 2; i < Size_row-2; i++)
+		for (int j = 2; j < Size_col-2; j++)
+		{	
+			mean5 = mean_5(i,j,0);
+			IMean[i][j][0] = double(Imagedata[i][j][0]) - double(mean5);
+		}
+
+	
+	  
+	return 0;
+}
+
+
+% Akash Mukesh Joshi
+% USC ID :4703642421
+% USC Email : akashjos@usc.edu
+% Submission Date : 6th November 2016
+% Problem 1.a : PCA and KMeans Algorithm
+
+clc; clear; close all;
+fv_norm = csvread('prb1prta.csv');
+
+% Initializing First Centroid Clustering Points
+centroid = [ 1.50  -0.30  0.20;
+            -10.0   0.00  0.00;
+             2.00  -0.20 -0.40;
+             6.00   0.40  0.10];
+
+%% Running PCA for Dimensinality Reduction 25D to 3D
+ [~,score,~,~,explainedVar] = pca(fv_norm(:,1:12)');
+ figure;
+ bar(explainedVar)
+ for i = 1 : 1 : 12
+     for j = 1 : 1 : 3
+         fv_pca(i,j) = score(i,j);
+     end
+ end
+
+%% Running KMeans on 3D Feature Vector
+ [clusters(:,1), ~] = kmeans(fv_pca,4,'MaxIter',100,'Start',centroid);
+ figure;
+ scatter3(fv_pca(:,1),fv_pca(:,2),fv_pca(:,3),'r*');
+ figure;
+ gscatter(fv_pca(:,1),fv_pca(:,2),clusters)
+
+%% Running KMeans on 25D Feature Vector
+[clusters(:,2), ~] = kmeans(fv_norm(:,1:12)',5,'MaxIter',100);
+
+// Akash Mukesh Joshi
+// USC ID :4703642421
+// USC Email : akashjos@usc.edu
+// Submission Date : 6th November 2016
+// Poblem 2.a : Extraction and Description of Salient Points
+// cmake CMakeLists.txt && make
+// 
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+#include <algorithm>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include "opencv2/xfeatures2d.hpp"
+#include "opencv2/features2d/features2d.hpp"
+#include "opencv2/highgui/highgui.hpp"
+
+using namespace cv;
+using namespace cv::xfeatures2d;
+using namespace std;
+
+int main(int argc, const char* argv[])
+{
+	Mat Imagedata_bus = imread( argv[1], IMREAD_GRAYSCALE );
+	Mat Imagedata_jeep = imread( argv[2], IMREAD_GRAYSCALE );
+	
+  	int minHessian = 400;
+
+  	Ptr<SURF> detector_surf = SURF::create( minHessian );
+  	Ptr<Feature2D> detector_sift = xfeatures2d::SIFT::create();
+
+  	std::vector<KeyPoint> keypoints_1, keypoints_2;
+
+  	Mat Imagedata_bus_keypoints;
+  	Mat Imagedata_jeep_keypoints;
+
+  	// Keypoint Detection using SURF 
+  	detector_surf->detect( Imagedata_bus, keypoints_1);
+	detector_surf->detect( Imagedata_jeep, keypoints_2);
+
+	drawKeypoints(Imagedata_bus, keypoints_1, Imagedata_bus_keypoints);
+  	drawKeypoints(Imagedata_jeep, keypoints_2, Imagedata_jeep_keypoints);
+
+	imwrite("Bus_Surf.jpg", Imagedata_bus_keypoints);
+	imwrite("Jeep_Surf.jpg", Imagedata_jeep_keypoints);
+
+	// Keypoint Detection using SIFT
+	detector_sift->detect( Imagedata_bus, keypoints_1);
+	detector_sift->detect( Imagedata_jeep, keypoints_2); 
+	
+  	drawKeypoints(Imagedata_bus, keypoints_1, Imagedata_bus_keypoints);
+  	drawKeypoints(Imagedata_jeep, keypoints_2, Imagedata_jeep_keypoints);
+
+	imwrite("Bus_Sift.jpg", Imagedata_bus_keypoints);
+	imwrite("Jeep_Sift.jpg", Imagedata_jeep_keypoints);
+
+    return 0;
+}
+
+
+// Akash Mukesh Joshi
+// USC ID :4703642421
+// USC Email : akashjos@usc.edu
+// Submission Date : 6th November 2016
+// Poblem 2.a : Extraction and Description of Salient Points
+// cmake CMakeLists.txt && make
+// 
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+#include <algorithm>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include "opencv2/xfeatures2d.hpp"
+#include "opencv2/features2d/features2d.hpp"
+#include "opencv2/highgui/highgui.hpp"
+
+using namespace cv;
+using namespace cv::xfeatures2d;
+using namespace std;
+
+int main(int argc, const char* argv[])
+{
+	Mat Imagedata_bus = imread( argv[1], IMREAD_GRAYSCALE );
+	Mat Imagedata_jeep = imread( argv[2], IMREAD_GRAYSCALE );
+	
+  	int minHessian = 400;
+
+  	Ptr<SURF> detector_surf = SURF::create( minHessian );
+  	Ptr<Feature2D> detector_sift = xfeatures2d::SIFT::create();
+
+  	std::vector<KeyPoint> keypoints_1, keypoints_2;
+
+  	Mat Imagedata_bus_keypoints;
+  	Mat Imagedata_jeep_keypoints;
+
+  	// Keypoint Detection using SURF 
+  	detector_surf->detect( Imagedata_bus, keypoints_1);
+	detector_surf->detect( Imagedata_jeep, keypoints_2);
+
+	drawKeypoints(Imagedata_bus, keypoints_1, Imagedata_bus_keypoints);
+  	drawKeypoints(Imagedata_jeep, keypoints_2, Imagedata_jeep_keypoints);
+
+	imwrite("Bus_Surf.jpg", Imagedata_bus_keypoints);
+	imwrite("Jeep_Surf.jpg", Imagedata_jeep_keypoints);
+
+	// Keypoint Detection using SIFT
+	detector_sift->detect( Imagedata_bus, keypoints_1);
+	detector_sift->detect( Imagedata_jeep, keypoints_2); 
+	
+  	drawKeypoints(Imagedata_bus, keypoints_1, Imagedata_bus_keypoints);
+  	drawKeypoints(Imagedata_jeep, keypoints_2, Imagedata_jeep_keypoints);
+
+	imwrite("Bus_Sift.jpg", Imagedata_bus_keypoints);
+	imwrite("Jeep_Sift.jpg", Imagedata_jeep_keypoints);
+
+    return 0;
+}
+
+// Akash Mukesh Joshi
+// USC ID :4703642421
+// USC Email : akashjos@usc.edu
+// Submission Date : 6th November 2016
+// Poblem 3.a : Canny Edge Detection 
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+#include <algorithm>
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <opencv2/opencv.hpp>
+
+using namespace cv;
+using namespace std;
+
+//////////////////////////////////////////////
+int main(int argc, char** argv )
+{
+	// Define file pointer and variables
+	FILE *file = NULL;
+	int BytesPerPixel = 3;
+	int Size_col = 481;
+	int Size_row = 321;
+	double low_threshold = 400;
+	double high_threshold = 600;
+	int framesize = Size_col * Size_row;
+
+	// Allocate image data array
+	unsigned char Imagedata_Z[Size_row][Size_col][BytesPerPixel] = {0};
+	unsigned char Imagedata_J[Size_row][Size_col][BytesPerPixel] = {0};
+	unsigned char ImagedataGS_Z[Size_row][Size_col] = {0};
+	unsigned char ImagedataGS_J[Size_row][Size_col] = {0};	
+	unsigned char ICanny[Size_row][Size_col] = {0};
+
+	// Check for proper syntax
+	if (argc < 1){
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name" << endl;
+		return 0;
+	}
+
+	// Read image (filename specified by first argument) into image data matrix
+	if (!(file=fopen(argv[1],"rg"))) {
+		cout << "Cannot open file: " << argv[1] << endl;
+		exit(1);
+	}
+
+	fread(Imagedata_Z, sizeof(unsigned char), Size_row*Size_col*BytesPerPixel, file);
+	fclose(file);
+
+	if (!(file=fopen(argv[2],"rg"))) {
+		cout << "Cannot open file: " << argv[2] << endl;
+		exit(1);
+	}
+
+	fread(Imagedata_J, sizeof(unsigned char), Size_row*Size_col*BytesPerPixel, file);
+	fclose(file);
+
+	//////////////////////// INSERT CODE HERE /////////////////
+	// Converting Image into Grayscale
+	for(int i = 0; i <  Size_row; i++)
+		for(int j = 0; j < Size_col; j++)
+			{
+				ImagedataGS_Z[i][j] = floor (Imagedata_Z[i][j][0] * 0.29 
+									 + Imagedata_Z[i][j][1] * 0.59
+									 + Imagedata_Z[i][j][2] * 0.11);
+			
+				ImagedataGS_J[i][j] = floor (Imagedata_J[i][j][0] * 0.29 
+									 + Imagedata_J[i][j][1] * 0.59
+									 + Imagedata_J[i][j][2] * 0.11);
+			}
+
+	Mat M = Mat::zeros(321, 481, CV_8UC1);
+	Mat N = Mat::zeros(321, 481, CV_8UC1);
+	Mat N_Invert = Mat::zeros(321, 481, CV_8UC1);
+	
+	// Zebra
+	M = Mat(321, 481, CV_8UC1, &ImagedataGS_Z);
+
+	Canny(M,N,low_threshold,high_threshold,3);
+    threshold(N, N_Invert, 70, 255, CV_THRESH_BINARY_INV);
+
+    imwrite("/home/acewalker/Documents/EE569DIP/Homework3/HW3 Images/P3/Zebra_Canny.jpg",N_Invert);
+    waitKey();
+
+    // Jaguar
+	M = Mat(321, 481, CV_8UC1, &ImagedataGS_J);
+
+	Canny(M,N,low_threshold,high_threshold,3);
+    threshold(N, N_Invert, 70, 255, CV_THRESH_BINARY_INV);
+
+    imwrite("/home/acewalker/Documents/EE569DIP/Homework3/HW3 Images/P3/Jaguar_Canny.jpg",N_Invert);
+    waitKey();    
+
+    return 0;
+}
+
+function G = readraw(filename,Size_Col,Size_Row)
+%readraw - read RAW format grey scale image of square size into matrix G
+% Usage:	G = readraw(filename)
+
+	disp(['	Retrieving Image ' filename ' ...']);
+
+	% Get file ID for file
+	fid=fopen(filename,'rb');
+
+	% Check if file exists
+	if (fid == -1)
+	  	error('can not open input image file press CTRL-C to exit \n');
+	  	pause
+	end
+
+	% Get all the pixels from the image
+	pixel = fread(fid, inf, 'uint8=>uint8');
+
+	% Close file
+	fclose(fid);
+
+	% Calculate length/width, assuming image is square
+	[Y X]=size(pixel);
+	Size=(Y*X);
+	N=sqrt(Size);
+
+	% Construct matrix
+	G = zeros(Size_Col,Size_Row);
+    Size=(Size_Row*Size_Col);
+	% Write pixels into matrix
+	G(1:Size) = pixel(1:Size);
+
+	% Transpose matrix, to orient it properly
+	G = G';
+%     figure;
+%     imshow(G);
+end %function
+
+function Original_image = readraw(filename,Size_Col,Size_Row)
+%readraw - read RAW format grey scale image of square size into matrix G
+% Usage:	G = readraw(filename)
+
+% Initialize counter variables that assist in reading the image
+Blue_count= 1;
+Red_count= 1;
+Green_count= 1;
+
+% Declare arrays for reading raw files to individual 1D color arrays
+Blue= uint8(zeros(1,Size_Row*Size_Col));
+Red= uint8(zeros(1,Size_Row*Size_Col));
+Green= uint8(zeros(1,Size_Row*Size_Col));
+
+disp(['	Retrieving Image ' filename ' ...']);
+
+% Get file ID for file
+fid=fopen(filename,'rb');
+
+% Check if file exists
+if (fid == -1)
+    error('can not open input image file press CTRL-C to exit \n');
+    pause
+end
+
+% Get all the pixels from the image
+pixel = fread(fid, inf, 'uint8=>uint8');
+% Close file
+fclose(fid);
+
+[Y,X,K] = size(pixel);
+
+% Segregate Red Green and Blue parts of the image
+for m= 1:X*Y*K
+    if mod(m,3)== 0
+        Blue(1,Blue_count)= pixel(m);
+        Blue_count = Blue_count+1;
+    elseif mod(m,3)== 1
+        Red(1,Red_count)= pixel(m);
+        Red_count = Red_count+1;
+    elseif mod(m,3)== 2
+        Green(1,Green_count)= pixel(m);
+        Green_count = Green_count+1;
+    end
+end
+
+% Reshape the 1D color arrays into 2D image channels
+Red_plane = uint8(zeros(Size_Row,Size_Col));
+Green_plane = uint8(zeros(Size_Row,Size_Col));
+Blue_plane = uint8(zeros(Size_Row,Size_Col));
+
+count = 1;
+m = 1;
+
+for i = 1:Size_Col*Size_Row
+    Red_plane(m,count) = Red(1,i);
+    
+    count = count+1;
+    
+    if count == Size_Col+1
+        count = 1;
+        m = m+1;
+    end
+end
+
+count = 1;
+m = 1;
+
+for i = 1:Size_Col*Size_Row
+    Green_plane(m,count) = Green(1,i);
+    
+    count = count+1;
+    
+    if count == Size_Col+1
+        count = 1;
+        m = m+1;
+    end
+end
+
+
+count = 1;
+m = 1;
+for i = 1:Size_Col*Size_Row
+    Blue_plane(m,count) = Blue(1,i);
+    
+    count = count+1;
+    
+    if count == Size_Col+1
+        count = 1;
+        m = m+1;
+    end
+end
+
+% Construct the Original image by Concatenating the 3 2D color channels to
+% one array and show it
+Original_image = uint8(zeros(Size_Row,Size_Col,3));
+
+for m = 1:Size_Row
+    for n = 1:Size_Col
+        Original_image(m,n,1) = Red_plane(m,n);
+        Original_image(m,n,2) = Green_plane(m,n);
+        Original_image(m,n,3) = Blue_plane(m,n);
+    end
+end
+
+% figure;
+% imshow(Original_image);
+end %function
+
+% Akash Mukesh Joshi
+% USC ID :4703642421
+% USC Email : akashjos@usc.edu
+% Submission Date : 6th November 2016
+% Problem 3.b and 3.c : Structured Edge
+
+clc; clear; close all;
+% Initalizing Variables
+Size_Row = 321;
+Size_Col = 481;
+% Read Raw File
+prompt = 'Input Image Filename as "Filename" : ';
+str = input(prompt,'s');
+% str = 'Elephant';
+Imagedata = readRGB(strcat(str,'.raw'),Size_Col,Size_Row);
+IGT1 = uint8(readGS(strcat(str,'_gt1.raw'),Size_Col,Size_Row));
+IGT2 = uint8(readGS(strcat(str,'_gt2.raw'),Size_Col,Size_Row));
+IGT3 = uint8(readGS(strcat(str,'_gt3.raw'),Size_Col,Size_Row));
+IGT4 = uint8(readGS(strcat(str,'_gt4.raw'),Size_Col,Size_Row));
+IGT5 = uint8(readGS(strcat(str,'_gt5.raw'),Size_Col,Size_Row));
+if(strcmp(str,'Elephant') || strcmp(str,'Jaguar'))
+    IGT6 = uint8(readGS(strcat(str,'_gt6.raw'),Size_Col,Size_Row));
+end
+
+% Selecting Different Thresholds for Different Images
+if(strcmp(str,'Elephant'))
+    bthres = 0.15; % Optimized
+elseif(strcmp(str,'Zebra'))
+    bthres = 0.13; % Optimized
+else
+    bthres = 0.10; % Optimized
+end
+%% set opts for training (see edgesTrain.m)
+opts=edgesTrain();                % default options (good settings)
+opts.modelDir='models/';          % model will be in models/forest
+opts.modelFnm='modelBsds';        % model name
+opts.nPos=5e5; opts.nNeg=5e5;     % decrease to speedup training
+opts.useParfor=0;                 % parallelize if sufficient memory
+
+%% train edge detector (~20m/8Gb per tree, proportional to nPos/nNeg)
+tic, model=edgesTrain(opts); toc; % will load model if already trained
+
+%% set detection parameters (can set after training)
+% We can change model parameters here: NOTE
+model.opts.multiscale=1;          % for top accuracy set multiscale=1
+model.opts.sharpen=2;             % for top speed set sharpen=0
+model.opts.nTreesEval=4;          % for top speed set nTreesEval=1
+model.opts.nThreads=10;           % max number threads for evaluation
+model.opts.nms=1;                 % set to true to enable nms
+
+%% detect edge and visualize results
+tic, EEdges=edgesDetect(Imagedata,model); toc
+SEEdges = 1 - EEdges;
+figure(); im(Imagedata); figure(); im(SEEdges);
+
+% Forming Binary Image
+BSEEdges = EEdges;
+BSEEdges(EEdges >= bthres) = 0;
+BSEEdges(EEdges < bthres) = 1;
+figure(); im(BSEEdges);
+
+%% Performance Evaluation
+% Invert and Normalize Ground Truth Image
+IGT=struct('groundTruth',[]);
+if(strcmp(str,'Elephant') || strcmp(str,'Jaguar'))
+    IGT.groundTruth = cell(1,6);
+else
+    IGT.groundTruth = cell(1,5);
+end
+
+for i = 1 : 5
+    IGT.groundTruth{i}=struct('Boundaries',[]);
+end
+
+% Creating Ground Truth Boundaries
+IGT.groundTruth{1,1}.Boundaries=(1-(IGT1/255));
+IGT.groundTruth{1,2}.Boundaries=(1-(IGT2/255));
+IGT.groundTruth{1,3}.Boundaries=(1-(IGT3/255));
+IGT.groundTruth{1,4}.Boundaries=(1-(IGT4/255));
+IGT.groundTruth{1,5}.Boundaries=(1-(IGT5/255));
+if(strcmp(str,'Elephant') || strcmp(str,'Jaguar'))
+    IGT.groundTruth{1,6}.Boundaries=(1-(IGT6/255));
+end
+
+%  Performing Performance Evaluation
+disp('Starting Performance Evaluation...')
+[thrs,cntR,sumR,cntP,sumP,V]=edgesEvalImg(1-BSEEdges,IGT);
+
+% Calculating F-Measure using Precision and Recall
+Recall = cntR./sumR;
+Precision = cntP./sumP;
+
+% Removing Zero or NAN Terms
+Precision = Precision(Precision~=0);
+Precision(isnan(Precision)) = [];
+Recall = Recall(Recall~=0);
+Recall(isnan(Recall)) = [];
+
+% Calculating Mean Precision and Recall
+Recall_mean = mean(Recall);
+Precision_mean = mean(Precision);
+
+% Calculating F-Measure
+disp('Performance Evaluation Done');
+F_Measure =(2 * Recall_mean * Precision_mean / (Recall_mean + Precision_mean))
+
+% Performance Evaluation Table
